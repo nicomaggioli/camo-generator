@@ -19,10 +19,12 @@ import { DocumentCanvas, VIEW_PAD } from './components/DocumentCanvas';
 import { IconDock, Panels } from './components/panels/Panels';
 import { BgRemovalDialog } from './components/dialogs/BgRemovalDialog';
 import { AboutDialog, SavePresetDialog, SettingsDialog, ShortcutsDialog } from './components/dialogs/Dialogs';
+import { ExportDialog } from './components/dialogs/ExportDialog';
+import { interpretLocally, interpretWithClaude, type TextPatternResult } from './lib/textPattern';
 import { TOOLS } from './components/tools';
 
 // Discrete actions always get their own History step; slider drags and moves collapse into one.
-const DISCRETE = /^(Stamp|Delete Stamp|Clear Stamps|Regenerate|Randomize|Add Swatch|Delete Swatch|Paint Bucket|Swap Colors|Default Colors|AI Auto-Tune|Preset:|Swatches:|Reset Settings|Seamless|Tint|Darken|Lighten|Desaturate)/;
+const DISCRETE = /^(Stamp|Pattern:|Delete Stamp|Clear Stamps|Regenerate|Randomize|Add Swatch|Delete Swatch|Paint Bucket|Swap Colors|Default Colors|AI Auto-Tune|Preset:|Swatches:|Reset Settings|Seamless|Tint|Darken|Lighten|Desaturate)/;
 const canMerge = (label: string) => !DISCRETE.test(label);
 const newSeed = () => (Math.random() * 0xffffffff) >>> 0;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -38,7 +40,7 @@ function readFile(file: File): Promise<string> {
   });
 }
 
-type DialogId = 'savePreset' | 'shortcuts' | 'about' | 'settings' | null;
+type DialogId = 'savePreset' | 'shortcuts' | 'about' | 'settings' | 'export' | null;
 
 export default function App() {
   const hist = useHistory<DocState>({ config: DEFAULT_CONFIG, stamps: [], seed: newSeed() }, canMerge);
@@ -76,6 +78,11 @@ export default function App() {
   const [dialog, setDialog] = useState<DialogId>(null);
   const [mobileView, setMobileView] = useState<'canvas' | 'panels'>('canvas');
   const [toast, setToast] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<'svg' | 'png'>('svg');
+  const [tpText, setTpText] = useState('');
+  const [tpLoading, setTpLoading] = useState(false);
+  const [tpError, setTpError] = useState<string | null>(null);
+  const [tpResult, setTpResult] = useState<TextPatternResult | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -322,6 +329,27 @@ export default function App() {
     }, 'image/png');
   };
 
+  const openExport = (format: 'svg' | 'png' = 'svg') => { setExportFormat(format); setDialog('export'); };
+
+  // ---------- text to pattern ----------
+  const runTextPattern = async (text = tpText) => {
+    const idea = text.trim();
+    if (!idea) return;
+    setTpText(idea); setTpLoading(true); setTpError(null); setTopPanel('patterns');
+    try {
+      let r: TextPatternResult;
+      if (aiSettings.apiKey) {
+        try { r = await interpretWithClaude(idea, aiSettings); }
+        catch (e) { setTpError(`Claude request failed (${(e as Error).message}). Used the offline generator.`); r = interpretLocally(idea); }
+      } else {
+        await new Promise((res) => setTimeout(res, 150));
+        r = interpretLocally(idea);
+      }
+      setTpResult(r);
+      setDoc(`Pattern: ${r.name}`, (d) => ({ ...d, config: { ...r.config } }));
+    } finally { setTpLoading(false); }
+  };
+
   // ---------- presets ----------
   const savePreset = (name: string) => {
     const next = [{ id: uid(), name, config, timestamp: Date.now() }, ...presets];
@@ -360,7 +388,7 @@ export default function App() {
     if (mod) {
       const map: Record<string, () => void> = {
         z: () => (e.shiftKey ? hist.redo() : hist.undo()), y: hist.redo,
-        o: openFilePicker, e: () => exportPng(), s: () => setDialog('savePreset'), b: () => openBgRemoval(),
+        o: openFilePicker, e: () => openExport(e.shiftKey ? 'png' : 'svg'), s: () => setDialog('savePreset'), b: () => openBgRemoval(),
         '=': () => setZoomAt(zoom * 1.25), '+': () => setZoomAt(zoom * 1.25), '-': () => setZoomAt(zoom / 1.25), '0': fit, '1': () => setZoomAt(1),
       };
       if (map[k]) { e.preventDefault(); map[k](); }
@@ -419,9 +447,10 @@ export default function App() {
     canvasRef, viewportRef, zoom, setZoomAt, fit, size, setSize, tileView, setTileView, tileUrl,
     showPattern, setShowPattern, stampsVisible, setStampsVisible, stats,
     selectedStampId, setSelectedStampId, placeStamp, eraseAt, hitStamp, moveStamp, updateStamp, deleteStamp, clearStamps,
-    sampleAt, fillBackground, randomize, regenerate, exportPng,
+    sampleAt, fillBackground, randomize, regenerate, exportPng, openExport,
     presets, savePreset, deletePreset, applyPreset,
     ai: { result: aiResult, loading: aiLoading, error: aiError, settings: aiSettings, run: runAI, apply: () => aiResult && applyAI(aiResult), openSettings: () => setDialog('settings') },
+    textPattern: { text: tpText, setText: setTpText, loading: tpLoading, error: tpError, result: tpResult, run: (t) => { void runTextPattern(t); }, clear: () => { setTpResult(null); setTpError(null); } },
     topPanel, setTopPanel,
     bottomPanel, setBottomPanel,
     openDialog: setDialog, mod: MOD,
@@ -491,6 +520,10 @@ export default function App() {
         {dialog === 'savePreset' && <SavePresetDialog defaultName={`Preset ${presets.length + 1}`} onClose={() => setDialog(null)} onSave={(n) => { savePreset(n); setDialog(null); }} />}
         {dialog === 'shortcuts' && <ShortcutsDialog mod={MOD} onClose={() => setDialog(null)} />}
         {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
+        {dialog === 'export' && (
+          <ExportDialog logos={renderLogos} config={config} seed={doc.seed} stamps={resolveStamps()} showPattern={showPattern}
+            initialFormat={exportFormat} onExportPng={exportPng} onDone={notify} onClose={() => setDialog(null)} />
+        )}
       </div>
     </AppCtx.Provider>
   );

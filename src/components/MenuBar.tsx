@@ -28,11 +28,9 @@ export function MenuBar() {
     { label: 'File', items: [
       { label: 'Place Logo…', shortcut: `${m}O`, onClick: a.openFilePicker, disabled: a.logos.length >= 2 },
       '-',
-      { label: `Export PNG (${a.size}px)`, shortcut: `${m}E`, onClick: () => a.exportPng() },
-      { label: 'Export PNG @ 512px', onClick: () => a.exportPng(512) },
-      { label: 'Export PNG @ 1024px', onClick: () => a.exportPng(1024) },
-      { label: 'Export PNG @ 2048px', onClick: () => a.exportPng(2048) },
-      { label: 'Export PNG @ 4096px', onClick: () => a.exportPng(4096) },
+      { label: 'Export Vector SVG (Illustrator)…', shortcut: `${m}E`, onClick: () => a.openExport('svg') },
+      { label: 'Export PNG…', shortcut: `⇧${m}E`, onClick: () => a.openExport('png') },
+      { label: `Quick Export PNG (${a.size}px)`, onClick: () => a.exportPng() },
       '-',
       { label: 'Save as Preset…', shortcut: `${m}S`, onClick: () => a.openDialog('savePreset') },
     ] },
@@ -60,6 +58,9 @@ export function MenuBar() {
       { label: 'Adjust: Randomize Palette', onClick: () => a.randomize('palette') },
     ] },
     { label: 'Pattern', items: [
+      { label: 'Browse Pattern Library…', onClick: () => a.setTopPanel('patterns') },
+      { label: 'Create Pattern from Words…', onClick: () => { a.setTopPanel('patterns'); setTimeout(() => (document.querySelector('[aria-label="Pattern idea"]') as HTMLInputElement | null)?.focus(), 50); } },
+      '-',
       { label: 'Regenerate', shortcut: 'N', onClick: a.regenerate },
       { label: 'Randomize Everything', onClick: () => a.randomize('all') },
       '-',
@@ -122,7 +123,7 @@ export function MenuBar() {
       </div>
       <div className="ml-2 hidden items-center gap-1 sm:flex">
         <button type="button" onClick={() => a.openDialog('shortcuts')} className="rounded p-1.5 text-ps-dim hover:bg-ps-hover hover:text-white" title="Search shortcuts"><Search size={15} /></button>
-        <button type="button" onClick={() => a.exportPng()} className="rounded p-1.5 text-ps-dim hover:bg-ps-hover hover:text-white" title="Export PNG"><Share size={15} /></button>
+        <button type="button" onClick={() => a.openExport('svg')} className="rounded p-1.5 text-ps-dim hover:bg-ps-hover hover:text-white" title="Export"><Share size={15} /></button>
       </div>
       {open !== null && <MenuDropdown items={menus[open].items} left={dropLeft(ref.current, open)} onDone={() => setOpen(null)} />}
     </div>

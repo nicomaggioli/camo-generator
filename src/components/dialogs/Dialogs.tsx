@@ -49,7 +49,7 @@ export function ShortcutsDialog({ mod, onClose }: { mod: string; onClose: () => 
     ['Tools', TOOLS.map((t) => [t.name, t.key])],
     ['Canvas', [['Pan temporarily', 'Space'], ['Zoom in / out', `${mod}+ / ${mod}−`], ['Fit on screen', `${mod}0`], ['Actual pixels', `${mod}1`], ['Tile preview', 'T']]],
     ['Edit', [['Undo', `${mod}Z`], ['Redo', `⇧${mod}Z`], ['Regenerate layout', 'N'], ['Swap colors', 'X'], ['Default colors', 'D'], ['Brush / stamp size', '[  ]'], ['Delete selected stamp', 'Del'], ['Nudge stamp', 'Arrows']]],
-    ['File', [['Place logo', `${mod}O`], ['Export PNG', `${mod}E`], ['Save preset', `${mod}S`], ['Remove background', `${mod}B`]]],
+    ['File', [['Place logo', `${mod}O`], ['Export vector SVG', `${mod}E`], ['Export PNG', `⇧${mod}E`], ['Save preset', `${mod}S`], ['Remove background', `${mod}B`]]],
   ];
   return (
     <Dialog title="Keyboard Shortcuts" onClose={onClose} width="max-w-2xl" footer={<Btn primary onClick={onClose}>OK</Btn>}>

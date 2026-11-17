@@ -1,6 +1,7 @@
 import { createContext, useContext, type RefObject } from 'react';
 import type { AIAnalysisResult, CamoConfig, DocState, LogoAsset, Preset, Stamp, ToolId, ToolOptions } from '../types';
 import type { AISettings } from '../lib/ai';
+import type { TextPatternResult } from '../lib/textPattern';
 
 export type TopPanel = 'color' | 'swatches' | 'patterns';
 export type BottomPanel = 'properties' | 'layers' | 'ai' | 'history';
@@ -68,6 +69,7 @@ export interface AppApi {
   randomize: (mode?: ToolOptions['diceMode']) => void;
   regenerate: () => void;
   exportPng: (size?: number) => void;
+  openExport: (format?: 'svg' | 'png') => void;
 
   presets: Preset[];
   savePreset: (name: string) => void;
@@ -82,6 +84,16 @@ export interface AppApi {
     run: () => void;
     apply: () => void;
     openSettings: () => void;
+  };
+
+  textPattern: {
+    text: string;
+    setText: (t: string) => void;
+    loading: boolean;
+    error: string | null;
+    result: TextPatternResult | null;
+    run: (text?: string) => void;
+    clear: () => void;
   };
 
   topPanel: TopPanel;

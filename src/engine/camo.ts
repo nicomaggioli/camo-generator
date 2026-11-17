@@ -93,6 +93,50 @@ export interface RenderStats {
   ms: number;
 }
 
+/** One generated shape. x/y are 0–1 of the tile, rotation in radians, flip is ±1. */
+export interface PatternShape {
+  logoIndex: number;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  flip: number;
+  color: string | null;
+  outlined: boolean;
+}
+
+/**
+ * The seeded layout shared by the raster renderer and the vector exporter, so both
+ * produce the same pattern. Returns one array of shapes per layering pass.
+ */
+export function layoutPattern(logoCount: number, cfg: CamoConfig, seed: number): PatternShape[][] {
+  if (!logoCount) return [];
+  const sMin = Math.min(cfg.scaleMin, cfg.scaleMax);
+  const sMax = Math.max(cfg.scaleMin, cfg.scaleMax);
+  const colors: (string | null)[] = cfg.useCustomColors && cfg.palette.length ? cfg.palette : [null];
+  const canOutline = cfg.outlineWidth > 0;
+  const rng = mulberry32(seed);
+  const passes = Math.max(1, Math.round(cfg.layering));
+  const out: PatternShape[][] = [];
+  for (let p = 0; p < passes; p++) {
+    const passScale = 1 - (p / passes) * 0.35;
+    const list: PatternShape[] = [];
+    for (let i = 0; i < cfg.density; i++) {
+      const logoIndex = Math.floor(rng() * logoCount);
+      const color = colors[Math.floor(rng() * colors.length)];
+      const outlined = canOutline && rng() < cfg.outlineChance;
+      const scale = (sMin + rng() * (sMax - sMin)) * passScale;
+      const rotation = ((rng() - 0.5) * cfg.rotationJitter * Math.PI) / 180;
+      const x = rng();
+      const y = rng();
+      const flip = rng() < 0.5 ? -1 : 1;
+      list.push({ logoIndex, x, y, scale, rotation, flip, color, outlined });
+    }
+    out.push(list);
+  }
+  return out;
+}
+
 export function renderCamo(
   target: HTMLCanvasElement,
   logos: HTMLImageElement[],
@@ -123,7 +167,6 @@ export function renderCamo(
 
   const unit = size / REFERENCE_SIZE;
   const baseSize = size * BASE_FRACTION;
-  const sMin = Math.min(cfg.scaleMin, cfg.scaleMax);
   const sMax = Math.max(cfg.scaleMin, cfg.scaleMax);
   const outlinePx = cfg.outlineWidth * unit;
   const blurPx = cfg.blur * unit;
@@ -131,8 +174,6 @@ export function renderCamo(
 
   const spriteLongest = Math.min(1024, Math.max(64, Math.ceil(baseSize * maxScale)));
   const k = spriteLongest / baseSize;
-  const colors: (string | null)[] = cfg.useCustomColors && cfg.palette.length ? cfg.palette : [null];
-
   const cache = new Map<string, Sprite>();
   const sprite = (li: number, color: string | null, outlined: boolean) => {
     const key = `${li}|${color}|${outlined}`;
@@ -171,25 +212,14 @@ export function renderCamo(
     const margin = Math.ceil(blurPx * 3 + 2);
     const layer = makeCanvas(size + margin * 2, size + margin * 2);
     const lctx = layer.getContext('2d')!;
-    const rng = mulberry32(seed);
-    const passes = Math.max(1, Math.round(cfg.layering));
-    for (let p = 0; p < passes; p++) {
+    for (const pass of layoutPattern(logos.length, cfg, seed)) {
       lctx.setTransform(1, 0, 0, 1, 0, 0);
       lctx.globalCompositeOperation = 'source-over';
       lctx.clearRect(0, 0, layer.width, layer.height);
       lctx.globalCompositeOperation = cfg.blendMode;
       lctx.globalAlpha = cfg.opacity;
-      const passScale = 1 - (p / passes) * 0.35;
-      for (let i = 0; i < cfg.density; i++) {
-        const li = Math.floor(rng() * logos.length);
-        const color = colors[Math.floor(rng() * colors.length)];
-        const outlined = outlinePx > 0 && rng() < cfg.outlineChance;
-        const scale = (sMin + rng() * (sMax - sMin)) * passScale;
-        const rot = ((rng() - 0.5) * cfg.rotationJitter * Math.PI) / 180;
-        const x = rng() * size;
-        const y = rng() * size;
-        const flip = rng() < 0.5 ? -1 : 1;
-        place(lctx, sprite(li, color, outlined), x, y, scale, rot, flip, margin, layer.width);
+      for (const sh of pass) {
+        place(lctx, sprite(sh.logoIndex, sh.color, sh.outlined), sh.x * size, sh.y * size, sh.scale, sh.rotation, sh.flip, margin, layer.width);
         shapes++;
       }
       ctx.save();

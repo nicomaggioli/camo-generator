@@ -14,7 +14,7 @@ export function Panels({ stacked = false }: { stacked?: boolean }) {
   return (
     <>
       <PanelGroup
-        className={stacked ? 'h-[360px] shrink-0 border-b-4 border-ps-line' : 'h-[42%] min-h-[240px] border-b-4 border-ps-line'}
+        className={stacked ? `${a.topPanel === 'patterns' ? 'h-[620px]' : 'h-[360px]'} shrink-0 border-b-4 border-ps-line` : `${a.topPanel === 'patterns' ? 'h-[64%]' : 'h-[42%]'} min-h-[240px] border-b-4 border-ps-line`}
         tabs={[{ id: 'color', label: 'Color' }, { id: 'swatches', label: 'Swatches' }, { id: 'patterns', label: 'Patterns' }]}
         active={a.topPanel} onChange={a.setTopPanel}
       >
